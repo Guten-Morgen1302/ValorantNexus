@@ -1,39 +1,44 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import * as schema from "../../shared/schema";
 
-// Configure for Vercel serverless - no WebSocket needed for simple queries
-neonConfig.fetchConnectionCache = true;
+import { drizzle } from 'drizzle-orm/neon-http';
+import { neon } from '@neondatabase/serverless';
+import { users, teams, admins, settings } from '../../shared/schema';
+import bcrypt from 'bcrypt';
+import { eq } from 'drizzle-orm';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
+const sql = neon(process.env.DATABASE_URL!);
+export const db = drizzle(sql);
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+let initialized = false;
 
-// Initialize database with settings and default admin
 export async function initializeDatabase() {
+  if (initialized) return;
+  
   try {
-    // Insert default settings
-    await db.insert(schema.settings).values({
-      key: "registration_open",
-      value: "true"
-    }).onConflictDoNothing();
+    // Check if admin exists
+    const existingAdmin = await db.select().from(admins).limit(1);
     
-    // Create default admin if not exists
-    const bcrypt = await import('bcrypt');
-    const defaultAdminHash = await bcrypt.hash('admin123!', 10);
-    
-    await db.insert(schema.admins).values({
-      email: 'admin@tournament.com',
-      passwordHash: defaultAdminHash
-    }).onConflictDoNothing();
-    
-    console.log('✓ Database initialized with default admin (admin@tournament.com / admin123!)');
+    if (existingAdmin.length === 0) {
+      // Create default admin
+      const passwordHash = await bcrypt.hash('admin123!', 10);
+      await db.insert(admins).values({
+        email: 'admin@tournament.com',
+        passwordHash,
+      });
+      console.log('✓ Default admin created');
+    }
+
+    // Create default settings
+    const existingSettings = await db.select().from(settings).where(eq(settings.key, 'registration_open')).limit(1);
+    if (existingSettings.length === 0) {
+      await db.insert(settings).values({
+        key: 'registration_open',
+        value: 'true',
+      });
+    }
+
+    initialized = true;
+    console.log('✓ Database initialized');
   } catch (error) {
-    console.log("Database already initialized");
+    console.error('Database initialization error:', error);
   }
 }
