@@ -1,9 +1,9 @@
 
-import { NextRequest, NextResponse } from 'next/server';
+import { VercelRequest, VercelResponse } from '@vercel/node';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import { db, initializeDatabase } from './_lib/db';
-import { users } from '../../shared/schema';
+import { users } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 
 // Initialize database on first request
@@ -28,95 +28,95 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required")
 });
 
-export async function POST(request: NextRequest) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   try {
     await ensureDbInitialized();
     
-    const url = new URL(request.url);
-    const action = url.searchParams.get('action');
+    const { action } = req.query;
     
-    if (action === 'signup') {
-      const body = await request.json();
-      const validatedData = signupSchema.parse(body);
+    if (req.method === 'POST') {
+      if (action === 'signup') {
+        const validatedData = signupSchema.parse(req.body);
+        
+        // Check if user already exists
+        const existingUser = await db.select().from(users).where(eq(users.email, validatedData.email)).limit(1);
+        
+        if (existingUser.length > 0) {
+          return res.status(400).json({ message: "User already exists with this email" });
+        }
+
+        // Hash password
+        const passwordHash = await bcrypt.hash(validatedData.password, 10);
+        
+        // Create user
+        const [newUser] = await db.insert(users).values({
+          name: validatedData.name,
+          email: validatedData.email,
+          discordId: validatedData.discordId,
+          passwordHash,
+        }).returning();
+
+        return res.status(200).json({ 
+          user: { 
+            id: newUser.id, 
+            name: newUser.name, 
+            email: newUser.email, 
+            discordId: newUser.discordId 
+          } 
+        });
+      }
       
-      // Check if user already exists
-      const existingUser = await db.select().from(users).where(eq(users.email, validatedData.email)).limit(1);
-      
-      if (existingUser.length > 0) {
-        return NextResponse.json({ message: "User already exists with this email" }, { status: 400 });
+      if (action === 'login') {
+        const { email, password } = loginSchema.parse(req.body);
+        
+        const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        
+        if (!user) {
+          return res.status(401).json({ message: "Invalid email or password" });
+        }
+
+        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+        if (!isValidPassword) {
+          return res.status(401).json({ message: "Invalid email or password" });
+        }
+
+        return res.status(200).json({ 
+          user: { 
+            id: user.id, 
+            name: user.name, 
+            email: user.email, 
+            discordId: user.discordId 
+          } 
+        });
       }
 
-      // Hash password
-      const passwordHash = await bcrypt.hash(validatedData.password, 10);
-      
-      // Create user
-      const [newUser] = await db.insert(users).values({
-        name: validatedData.name,
-        email: validatedData.email,
-        discordId: validatedData.discordId,
-        passwordHash,
-      }).returning();
-
-      return NextResponse.json({ 
-        user: { 
-          id: newUser.id, 
-          name: newUser.name, 
-          email: newUser.email, 
-          discordId: newUser.discordId 
-        } 
-      });
+      return res.status(400).json({ message: "Invalid action" });
     }
-    
-    if (action === 'login') {
-      const body = await request.json();
-      const { email, password } = loginSchema.parse(body);
-      
-      const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-      
-      if (!user) {
-        return NextResponse.json({ message: "Invalid email or password" }, { status: 401 });
+
+    if (req.method === 'GET') {
+      if (action === 'user') {
+        // For now, return a basic response since we don't have session management in serverless
+        return res.status(200).json({ user: null });
       }
 
-      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-      if (!isValidPassword) {
-        return NextResponse.json({ message: "Invalid email or password" }, { status: 401 });
-      }
-
-      return NextResponse.json({ 
-        user: { 
-          id: user.id, 
-          name: user.name, 
-          email: user.email, 
-          discordId: user.discordId 
-        } 
-      });
+      return res.status(400).json({ message: "Invalid action" });
     }
 
-    return NextResponse.json({ message: "Invalid action" }, { status: 400 });
+    return res.status(405).json({ message: "Method not allowed" });
   } catch (error) {
     console.error("Auth error:", error);
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: error.errors[0].message }, { status: 400 });
+      return res.status(400).json({ message: error.errors[0].message });
     }
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    await ensureDbInitialized();
-    
-    const url = new URL(request.url);
-    const action = url.searchParams.get('action');
-    
-    if (action === 'user') {
-      // For now, return a basic response since we don't have session management in serverless
-      return NextResponse.json({ user: null });
-    }
-
-    return NextResponse.json({ message: "Invalid action" }, { status: 400 });
-  } catch (error) {
-    console.error("Auth GET error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
