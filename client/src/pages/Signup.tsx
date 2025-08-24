@@ -31,7 +31,7 @@ export default function Signup() {
   });
 
   const signupMutation = useMutation({
-    mutationFn: (data: InsertUser) => apiRequest("POST", "/api/auth/signup", data),
+    mutationFn: (data: InsertUser) => apiRequest("POST", "/api/auth/signup-standalone", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({
