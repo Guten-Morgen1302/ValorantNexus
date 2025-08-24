@@ -3,17 +3,8 @@
   "outputDirectory": "dist/public",
   "installCommand": "npm install",
   "functions": {
-    "api/auth.ts": {
-      "runtime": "@vercel/node"
-    },
-    "api/admin.ts": {
-      "runtime": "@vercel/node"
-    },
-    "api/teams.ts": {
-      "runtime": "@vercel/node"
-    },
-    "api/settings.ts": {
-      "runtime": "@vercel/node"
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@3.0.7"
     }
   },
   "rewrites": [
