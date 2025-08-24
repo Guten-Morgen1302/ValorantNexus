@@ -1,0 +1,706 @@
+var __defProp = Object.defineProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// server/index.ts
+import express3 from "express";
+
+// server/routes.ts
+import express from "express";
+import { createServer } from "http";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import rateLimit from "express-rate-limit";
+
+// shared/schema.ts
+var schema_exports = {};
+__export(schema_exports, {
+  admins: () => admins,
+  insertTeamSchema: () => insertTeamSchema,
+  insertUserSchema: () => insertUserSchema,
+  loginSchema: () => loginSchema,
+  sessions: () => sessions,
+  settings: () => settings,
+  teams: () => teams,
+  users: () => users
+});
+import { pgTable, varchar, text, serial, timestamp, integer, index, jsonb } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+var sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull()
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)]
+);
+var users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow(),
+  name: varchar("name").notNull(),
+  email: varchar("email").notNull().unique(),
+  discordId: varchar("discord_id").notNull(),
+  passwordHash: varchar("password_hash").notNull()
+});
+var admins = pgTable("admins", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow(),
+  email: varchar("email").notNull().unique(),
+  passwordHash: varchar("password_hash").notNull()
+});
+var settings = pgTable("settings", {
+  key: varchar("key").primaryKey(),
+  value: varchar("value").notNull()
+});
+var teams = pgTable("teams", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow(),
+  teamName: varchar("team_name").notNull(),
+  leaderId: integer("leader_id").notNull().references(() => users.id),
+  membersJson: text("members_json").notNull(),
+  paymentProofPath: varchar("payment_proof_path"),
+  status: varchar("status").notNull().default("pending"),
+  // pending | approved | rejected
+  rejectionReason: text("rejection_reason")
+});
+var insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  passwordHash: true
+}).extend({
+  password: z.string().min(6, "Password must be at least 6 characters")
+});
+var insertTeamSchema = createInsertSchema(teams).omit({
+  id: true,
+  createdAt: true,
+  leaderId: true,
+  status: true,
+  rejectionReason: true
+}).extend({
+  members: z.array(z.object({
+    ign: z.string().min(1, "IGN is required"),
+    discord: z.string().optional()
+  })).min(1, "At least one member is required").max(5, "Maximum 5 members allowed")
+});
+var loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required")
+});
+
+// server/db.ts
+import { Pool, neonConfig } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import ws from "ws";
+neonConfig.webSocketConstructor = ws;
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?"
+  );
+}
+var pool = new Pool({ connectionString: process.env.DATABASE_URL });
+var db = drizzle({ client: pool, schema: schema_exports });
+async function initializeDatabase() {
+  try {
+    await db.insert(settings).values({
+      key: "registration_open",
+      value: "true"
+    }).onConflictDoNothing();
+    const bcrypt2 = await import("bcrypt");
+    const defaultAdminHash = await bcrypt2.hash("admin123!", 10);
+    await db.insert(admins).values({
+      email: "admin@tournament.com",
+      passwordHash: defaultAdminHash
+    }).onConflictDoNothing();
+    console.log("\u2713 Database initialized with default admin (admin@tournament.com / admin123!)");
+  } catch (error) {
+    console.log("Database already initialized");
+  }
+}
+
+// server/storage.ts
+import { eq, desc } from "drizzle-orm";
+var DatabaseStorage = class {
+  async getUser(id) {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+  async getUserByEmail(email) {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+  async createUser(userData) {
+    const [user] = await db.insert(users).values({
+      name: userData.name,
+      email: userData.email,
+      discordId: userData.discordId,
+      passwordHash: userData.passwordHash
+    }).returning();
+    return user;
+  }
+  async createTeam(teamData) {
+    const [team] = await db.insert(teams).values(teamData).returning();
+    return team;
+  }
+  async getTeamByLeaderId(leaderId) {
+    const [team] = await db.select().from(teams).where(eq(teams.leaderId, leaderId));
+    return team;
+  }
+  async getAllTeams() {
+    const result = await db.select({
+      team: teams,
+      leader: users
+    }).from(teams).innerJoin(users, eq(teams.leaderId, users.id)).orderBy(desc(teams.createdAt));
+    return result.map(({ team, leader }) => ({
+      ...team,
+      leader,
+      members: JSON.parse(team.membersJson)
+    }));
+  }
+  async updateTeamStatus(teamId, status, rejectionReason) {
+    await db.update(teams).set({ status, rejectionReason }).where(eq(teams.id, teamId));
+  }
+  async updateTeamPaymentProof(teamId, paymentProofPath) {
+    await db.update(teams).set({ paymentProofPath }).where(eq(teams.id, teamId));
+  }
+  async updateTeam(teamId, teamData) {
+    await db.update(teams).set(teamData).where(eq(teams.id, teamId));
+  }
+  async getSetting(key) {
+    const [setting] = await db.select().from(settings).where(eq(settings.key, key));
+    return setting?.value;
+  }
+  async setSetting(key, value) {
+    await db.insert(settings).values({ key, value }).onConflictDoUpdate({
+      target: settings.key,
+      set: { value }
+    });
+  }
+  async getAdmin(id) {
+    const [admin] = await db.select().from(admins).where(eq(admins.id, id));
+    return admin;
+  }
+  async getAdminByEmail(email) {
+    const [admin] = await db.select().from(admins).where(eq(admins.email, email));
+    return admin;
+  }
+  async createAdmin(adminData) {
+    const [admin] = await db.insert(admins).values(adminData).returning();
+    return admin;
+  }
+  async deleteTeam(teamId) {
+    await db.delete(teams).where(eq(teams.id, teamId));
+  }
+};
+var storage = new DatabaseStorage();
+
+// server/middleware/auth.ts
+import bcrypt from "bcrypt";
+async function userAuth(req, res, next) {
+  const userId = req.session.userId;
+  if (!userId) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+  const user = await storage.getUser(userId);
+  if (!user) {
+    return res.status(401).json({ message: "User not found" });
+  }
+  req.userId = userId;
+  req.user = user;
+  next();
+}
+async function adminAuth(req, res, next) {
+  const adminId = req.session.adminId;
+  if (!adminId) {
+    return res.status(401).json({ message: "Admin authentication required" });
+  }
+  const admin = await storage.getAdmin(adminId);
+  if (!admin) {
+    return res.status(401).json({ message: "Admin not found" });
+  }
+  req.adminId = adminId;
+  req.admin = admin;
+  next();
+}
+async function hashPassword(password) {
+  return bcrypt.hash(password, 10);
+}
+async function comparePassword(password, hash) {
+  return bcrypt.compare(password, hash);
+}
+
+// server/middleware/upload.ts
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+var uploadsDir = path.join(process.cwd(), "server", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+var storage2 = multer.diskStorage({
+  destination: function(req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function(req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+var fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/") || file.mimetype === "application/pdf") {
+    cb(null, true);
+  } else {
+    cb(new Error("Only image files (PNG, JPG, JPEG) and PDF files are allowed"), false);
+  }
+};
+var upload = multer({
+  storage: storage2,
+  limits: {
+    fileSize: 5 * 1024 * 1024
+    // 5MB limit
+  },
+  fileFilter
+});
+
+// server/routes.ts
+import { z as z2 } from "zod";
+import path2 from "path";
+var registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 5,
+  // limit each IP to 5 requests per windowMs
+  message: { message: "Too many registration attempts, please try again later" }
+});
+async function registerRoutes(app2) {
+  app2.set("trust proxy", 1);
+  await initializeDatabase();
+  const PostgreSqlStore = connectPgSimple(session);
+  app2.use(session({
+    store: new PostgreSqlStore({
+      conString: process.env.DATABASE_URL,
+      tableName: "sessions",
+      createTableIfMissing: false
+      // We already have the table
+    }),
+    name: "tournament-session",
+    secret: process.env.SESSION_SECRET || "fallback-secret-for-dev-only",
+    resave: false,
+    saveUninitialized: false,
+    rolling: true,
+    // Reset expiry on activity
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      // HTTPS only in production
+      httpOnly: true,
+      // Prevent XSS
+      maxAge: 24 * 60 * 60 * 1e3,
+      // 24 hours
+      sameSite: "lax"
+      // CSRF protection
+    }
+  }));
+  app2.use("/uploads", async (req, res, next) => {
+    try {
+      const isAdmin = req.session?.adminId;
+      const userId = req.session?.userId;
+      if (!isAdmin && !userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      if (!isAdmin && userId) {
+        const filename = req.url.split("/").pop();
+        const team = await storage.getTeamByLeaderId(userId);
+        if (!team || team.paymentProofPath !== filename) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+      next();
+    } catch (error) {
+      console.error("File access error:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+  app2.use("/uploads", express.static(path2.join(process.cwd(), "server", "uploads")));
+  app2.post("/api/auth/signup", registerLimiter, async (req, res) => {
+    try {
+      const validatedData = insertUserSchema.parse(req.body);
+      const existingUser = await storage.getUserByEmail(validatedData.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User already exists with this email" });
+      }
+      const passwordHash = await hashPassword(validatedData.password);
+      const user = await storage.createUser({
+        name: validatedData.name,
+        email: validatedData.email,
+        discordId: validatedData.discordId,
+        passwordHash
+      });
+      req.session.userId = user.id;
+      res.json({ user: { id: user.id, name: user.name, email: user.email, discordId: user.discordId } });
+    } catch (error) {
+      if (error instanceof z2.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Signup error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = loginSchema.parse(req.body);
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      const isValidPassword = await comparePassword(password, user.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      req.session.userId = user.id;
+      res.json({ user: { id: user.id, name: user.name, email: user.email, discordId: user.discordId } });
+    } catch (error) {
+      if (error instanceof z2.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) console.error("Session destroy error:", err);
+    });
+    res.json({ message: "Logged out successfully" });
+  });
+  app2.get("/api/auth/user", userAuth, (req, res) => {
+    res.json({ user: { id: req.user.id, name: req.user.name, email: req.user.email, discordId: req.user.discordId } });
+  });
+  app2.post("/api/teams/register", userAuth, upload.single("paymentProof"), async (req, res) => {
+    try {
+      const registrationOpen = await storage.getSetting("registration_open");
+      if (registrationOpen !== "true") {
+        return res.status(400).json({ message: "Registration is currently closed" });
+      }
+      const existingTeam = await storage.getTeamByLeaderId(req.userId);
+      if (existingTeam && existingTeam.status !== "rejected") {
+        return res.status(400).json({ message: "You have already registered a team" });
+      }
+      const teamName = req.body.teamName;
+      const membersString = req.body.members;
+      if (!teamName || teamName.trim() === "") {
+        return res.status(400).json({ message: "Team name is required" });
+      }
+      let members = [];
+      try {
+        members = JSON.parse(membersString || "[]");
+      } catch (e) {
+        return res.status(400).json({ message: "Invalid member data format" });
+      }
+      if (!Array.isArray(members) || members.length === 0) {
+        return res.status(400).json({ message: "At least one team member is required" });
+      }
+      for (let i = 0; i < members.length; i++) {
+        const member = members[i];
+        if (!member.ign || member.ign.trim() === "") {
+          return res.status(400).json({ message: `IGN is required for member ${i + 1}` });
+        }
+      }
+      let team;
+      if (existingTeam && existingTeam.status === "rejected") {
+        await storage.updateTeam(existingTeam.id, {
+          teamName: teamName.trim(),
+          membersJson: JSON.stringify(members),
+          paymentProofPath: req.file?.filename || null,
+          status: "pending",
+          rejectionReason: null
+        });
+        team = await storage.getTeamByLeaderId(req.userId);
+      } else {
+        team = await storage.createTeam({
+          teamName: teamName.trim(),
+          leaderId: req.userId,
+          membersJson: JSON.stringify(members),
+          paymentProofPath: req.file?.filename || null,
+          status: "pending",
+          rejectionReason: null
+        });
+      }
+      const message = existingTeam && existingTeam.status === "rejected" ? "Team resubmitted successfully! Awaiting payment approval." : "Team registered successfully! Awaiting payment approval.";
+      res.json({ team, message });
+    } catch (error) {
+      console.error("Team registration error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.get("/api/teams/my-team", userAuth, async (req, res) => {
+    try {
+      const team = await storage.getTeamByLeaderId(req.userId);
+      if (!team) {
+        return res.status(404).json({ message: "No team found" });
+      }
+      res.json({
+        ...team,
+        members: JSON.parse(team.membersJson)
+      });
+    } catch (error) {
+      console.error("Get team error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.get("/api/settings/registration-open", async (req, res) => {
+    try {
+      const registrationOpen = await storage.getSetting("registration_open");
+      res.json({ registrationOpen: registrationOpen === "true" });
+    } catch (error) {
+      console.error("Get settings error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.post("/api/admin/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username and password are required" });
+      }
+      const admin = await storage.getAdminByEmail(username);
+      if (!admin) {
+        return res.status(401).json({ message: "Invalid admin credentials" });
+      }
+      const isValidPassword = await comparePassword(password, admin.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid admin credentials" });
+      }
+      req.session.adminId = admin.id;
+      res.json({ message: "Admin logged in successfully", admin: { id: admin.id, email: admin.email } });
+    } catch (error) {
+      console.error("Admin login error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.post("/api/admin/logout", (req, res) => {
+    if (req.session.adminId) {
+      delete req.session.adminId;
+    }
+    res.json({ message: "Admin logged out successfully" });
+  });
+  app2.get("/api/admin/check", adminAuth, (req, res) => {
+    res.json({ isAdmin: true });
+  });
+  app2.get("/api/admin/teams", adminAuth, async (req, res) => {
+    try {
+      const teams2 = await storage.getAllTeams();
+      res.json({ teams: teams2 });
+    } catch (error) {
+      console.error("Get admin teams error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.post("/api/admin/teams/:id/approve", adminAuth, async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.id);
+      await storage.updateTeamStatus(teamId, "approved");
+      res.json({ message: "Team approved successfully" });
+    } catch (error) {
+      console.error("Approve team error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.post("/api/admin/teams/:id/reject", adminAuth, async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.id);
+      const { reason } = req.body;
+      await storage.updateTeamStatus(teamId, "rejected", reason);
+      res.json({ message: "Team rejected successfully" });
+    } catch (error) {
+      console.error("Reject team error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.post("/api/admin/settings/registration-toggle", adminAuth, async (req, res) => {
+    try {
+      const { registrationOpen } = req.body;
+      await storage.setSetting("registration_open", registrationOpen ? "true" : "false");
+      res.json({ message: "Registration status updated", registrationOpen });
+    } catch (error) {
+      console.error("Toggle registration error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  app2.delete("/api/admin/teams/:id", adminAuth, async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.id);
+      if (isNaN(teamId)) {
+        return res.status(400).json({ message: "Invalid team ID" });
+      }
+      await storage.deleteTeam(teamId);
+      res.json({ message: "Team deleted successfully" });
+    } catch (error) {
+      console.error("Delete team error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  const httpServer = createServer(app2);
+  return httpServer;
+}
+
+// server/vite.ts
+import express2 from "express";
+import fs2 from "fs";
+import path4 from "path";
+import { createServer as createViteServer, createLogger } from "vite";
+
+// vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path3 from "path";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+var vite_config_default = defineConfig({
+  plugins: [
+    react(),
+    runtimeErrorOverlay(),
+    ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
+      await import("@replit/vite-plugin-cartographer").then(
+        (m) => m.cartographer()
+      )
+    ] : []
+  ],
+  resolve: {
+    alias: {
+      "@": path3.resolve(import.meta.dirname, "client", "src"),
+      "@shared": path3.resolve(import.meta.dirname, "shared"),
+      "@assets": path3.resolve(import.meta.dirname, "attached_assets")
+    }
+  },
+  root: path3.resolve(import.meta.dirname, "client"),
+  build: {
+    outDir: path3.resolve(import.meta.dirname, "dist/public"),
+    emptyOutDir: true
+  },
+  server: {
+    fs: {
+      strict: true,
+      deny: ["**/.*"]
+    }
+  }
+});
+
+// server/vite.ts
+import { nanoid } from "nanoid";
+var viteLogger = createLogger();
+function log(message, source = "express") {
+  const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+  console.log(`${formattedTime} [${source}] ${message}`);
+}
+async function setupVite(app2, server) {
+  const serverOptions = {
+    middlewareMode: true,
+    hmr: { server },
+    allowedHosts: true
+  };
+  const vite = await createViteServer({
+    ...vite_config_default,
+    configFile: false,
+    customLogger: {
+      ...viteLogger,
+      error: (msg, options) => {
+        viteLogger.error(msg, options);
+        process.exit(1);
+      }
+    },
+    server: serverOptions,
+    appType: "custom"
+  });
+  app2.use(vite.middlewares);
+  app2.use("*", async (req, res, next) => {
+    const url = req.originalUrl;
+    try {
+      const clientTemplate = path4.resolve(
+        import.meta.dirname,
+        "..",
+        "client",
+        "index.html"
+      );
+      let template = await fs2.promises.readFile(clientTemplate, "utf-8");
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`
+      );
+      const page = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+    } catch (e) {
+      vite.ssrFixStacktrace(e);
+      next(e);
+    }
+  });
+}
+function serveStatic(app2) {
+  const distPath = path4.resolve(import.meta.dirname, "public");
+  if (!fs2.existsSync(distPath)) {
+    throw new Error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`
+    );
+  }
+  app2.use(express2.static(distPath));
+  app2.use("*", (_req, res) => {
+    res.sendFile(path4.resolve(distPath, "index.html"));
+  });
+}
+
+// server/index.ts
+var app = express3();
+app.use(express3.json());
+app.use(express3.urlencoded({ extended: false }));
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path5 = req.path;
+  let capturedJsonResponse = void 0;
+  const originalResJson = res.json;
+  res.json = function(bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path5.startsWith("/api")) {
+      let logLine = `${req.method} ${path5} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "\u2026";
+      }
+      log(logLine);
+    }
+  });
+  next();
+});
+(async () => {
+  const server = await registerRoutes(app);
+  app.use((err, _req, res, _next) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+    res.status(status).json({ message });
+    throw err;
+  });
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+  const port = parseInt(process.env.PORT || "5000", 10);
+  server.listen({
+    port,
+    host: "0.0.0.0",
+    reusePort: true
+  }, () => {
+    log(`serving on port ${port}`);
+  });
+})();
