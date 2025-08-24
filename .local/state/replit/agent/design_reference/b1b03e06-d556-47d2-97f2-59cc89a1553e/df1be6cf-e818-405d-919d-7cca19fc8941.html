@@ -1,0 +1,712 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nyxxus E-Sports - Spike Rush Cup 2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Teko:wght@300;400;500;600;700&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'valorant-red': '#FF4655',
+                        'valorant-navy': '#0F1923',
+                        'valorant-off-white': '#ECE8E1',
+                        'valorant-charcoal': '#1B2733',
+                        'valorant-mint': '#9AF7D7',
+                    },
+                    fontFamily: {
+                        'teko': ['Teko', 'sans-serif'],
+                        'rajdhani': ['Rajdhani', 'sans-serif'],
+                    },
+                    animation: {
+                        'glitch': 'glitch 2s infinite',
+                        'float': 'float 3s ease-in-out infinite',
+                        'pulse-glow': 'pulse-glow 2s ease-in-out infinite alternate',
+                    },
+                }
+            }
+        };
+    </script>
+    <style>
+        .glass-morphism {
+            background: rgba(15, 25, 35, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 70, 85, 0.2);
+        }
+        
+        .glass-morphism-light {
+            background: rgba(236, 232, 225, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(154, 247, 215, 0.3);
+        }
+        
+        .skew-button {
+            transform: skewX(-10deg);
+            transition: all 0.3s ease;
+        }
+        
+        .skew-button:hover {
+            transform: skewX(-5deg) translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 70, 85, 0.4);
+        }
+        
+        .glitch-text {
+            position: relative;
+            color: #FF4655;
+            font-weight: bold;
+        }
+        
+        .glitch-text::before,
+        .glitch-text::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .glitch-text::before {
+            animation: glitch-1 0.5s infinite;
+            color: #9AF7D7;
+            z-index: -1;
+        }
+        
+        .glitch-text::after {
+            animation: glitch-2 0.5s infinite;
+            color: #ECE8E1;
+            z-index: -2;
+        }
+        
+        @keyframes glitch-1 {
+            0%, 14%, 15%, 49%, 50%, 99%, 100% { transform: translate(0); }
+            15%, 49% { transform: translate(-2px, 2px); }
+        }
+        
+        @keyframes glitch-2 {
+            0%, 20%, 21%, 62%, 63%, 99%, 100% { transform: translate(0); }
+            21%, 62% { transform: translate(2px, -2px); }
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        @keyframes pulse-glow {
+            from { box-shadow: 0 0 20px rgba(255, 70, 85, 0.4); }
+            to { box-shadow: 0 0 30px rgba(255, 70, 85, 0.8), 0 0 40px rgba(154, 247, 215, 0.3); }
+        }
+        
+        .hexagon-pattern {
+            background-image: 
+                radial-gradient(circle at 25% 25%, rgba(154, 247, 215, 0.1) 2px, transparent 2px),
+                radial-gradient(circle at 75% 75%, rgba(255, 70, 85, 0.1) 2px, transparent 2px);
+            background-size: 60px 60px;
+            background-position: 0 0, 30px 30px;
+        }
+        
+        .diagonal-section {
+            clip-path: polygon(0 0, 100% 10%, 100% 100%, 0 90%);
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-5px) rotateX(5deg);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        .nav-glass {
+            background: rgba(15, 25, 35, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 70, 85, 0.3);
+        }
+        
+        .status-pending { background: linear-gradient(45deg, #FFA500, #FF8C00); }
+        .status-approved { background: linear-gradient(45deg, #9AF7D7, #00FF7F); }
+        .status-rejected { background: linear-gradient(45deg, #FF4655, #FF1744); }
+    </style>
+</head>
+<body class="bg-valorant-navy font-rajdhani text-valorant-off-white overflow-x-hidden">
+    <!-- Background Effects -->
+    <div class="fixed inset-0 hexagon-pattern opacity-30 pointer-events-none"></div>
+    <div class="fixed inset-0 bg-gradient-to-br from-valorant-navy via-valorant-charcoal to-valorant-navy pointer-events-none"></div>
+    
+    <!-- Navigation -->
+    <!-- @COMPONENT: Navigation [authenticated state, active page] -->
+    <nav class="nav-glass fixed top-0 left-0 right-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 bg-valorant-red rounded-lg flex items-center justify-center">
+                        <i class="fas fa-gamepad text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-teko text-2xl font-bold text-valorant-red">NYXXUS E-SPORTS</h1>
+                        <p class="text-xs text-valorant-mint">Tournament Portal</p>
+                    </div>
+                </div>
+                
+                <div class="hidden md:flex items-center space-x-6">
+                    <a href="#home" class="hover:text-valorant-red transition-colors" data-bind="activeNavItem">Home</a>
+                    <a href="#register" class="hover:text-valorant-red transition-colors">Register Team</a>
+                    <a href="#rules" class="hover:text-valorant-red transition-colors">Rules</a>
+                    <a href="#profile" class="hover:text-valorant-red transition-colors">Profile</a>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div class="hidden md:block">
+                        <span class="text-sm" data-bind="user.name" data-mock="true">CallMeSon</span>
+                        <span class="text-xs text-valorant-mint block" data-bind="user.discord" data-mock="true">#1337</span>
+                    </div>
+                    <button class="glass-morphism px-4 py-2 rounded-lg hover:bg-valorant-red transition-colors" data-event="click:logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <!-- @END_COMPONENT: Navigation -->
+
+    <!-- Main Content Container -->
+    <div class="pt-20">
+        
+        <!-- Hero Section -->
+        <!-- @COMPONENT: HeroSection [tournament info] -->
+        <section id="home" class="min-h-screen flex items-center justify-center relative diagonal-section">
+            <div class="absolute inset-0 bg-gradient-to-r from-valorant-navy/90 to-valorant-charcoal/90"></div>
+            <div class="container mx-auto px-6 text-center relative z-10">
+                <div class="mb-8 animate-float">
+                    <h1 class="font-teko text-6xl md:text-8xl font-bold mb-4">
+                        <span class="glitch-text" data-text="NYXXUS E-SPORTS">NYXXUS E-SPORTS</span>
+                    </h1>
+                    <div class="h-1 w-32 bg-gradient-to-r from-valorant-red to-valorant-mint mx-auto mb-6"></div>
+                    <h2 class="font-teko text-4xl md:text-6xl text-valorant-mint mb-4">PRESENTS</h2>
+                    <h3 class="font-teko text-5xl md:text-7xl text-valorant-red font-bold animate-pulse-glow">
+                        SPIKE RUSH CUP 2.0
+                    </h3>
+                </div>
+                
+                <p class="text-xl mb-12 max-w-2xl mx-auto opacity-90">
+                    The ultimate Valorant tournament experience. Compete with the best, claim your victory.
+                </p>
+                
+                <div class="flex flex-col md:flex-row gap-6 justify-center items-center">
+                    <button class="skew-button bg-valorant-red px-8 py-4 text-xl font-bold rounded-lg text-white hover:bg-red-600" data-event="click:navigateToRegister">
+                        <span class="block transform skew-x-10">
+                            <i class="fas fa-users mr-2"></i>REGISTER TEAM
+                        </span>
+                    </button>
+                    <button class="skew-button glass-morphism-light px-8 py-4 text-xl font-bold rounded-lg hover:bg-valorant-mint hover:text-valorant-navy" data-event="click:navigateToRules">
+                        <span class="block transform skew-x-10">
+                            <i class="fas fa-book mr-2"></i>VIEW RULES
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </section>
+        <!-- @END_COMPONENT: HeroSection -->
+
+        <!-- Team Registration Section -->
+        <!-- @COMPONENT: TeamRegistration [user data, form state] -->
+        <section id="register" class="py-20 bg-valorant-charcoal">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="font-teko text-5xl font-bold text-valorant-red mb-4">TEAM REGISTRATION</h2>
+                    <div class="h-1 w-24 bg-valorant-mint mx-auto mb-6"></div>
+                    <p class="text-xl opacity-90">Assemble your squad for the ultimate Valorant showdown</p>
+                </div>
+                
+                <div class="max-w-4xl mx-auto">
+                    <div class="glass-morphism rounded-2xl p-8 card-hover">
+                        <!-- @STATE: registrationOpen:boolean = true -->
+                        <!-- @STATE: formData:object = {} -->
+                        
+                        <form class="space-y-6" data-event="submit:handleTeamRegistration">
+                            <!-- Team Info -->
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-bold text-valorant-mint mb-2">TEAM NAME *</label>
+                                    <input type="text" class="w-full bg-valorant-navy border border-valorant-red/30 rounded-lg px-4 py-3 text-white focus:border-valorant-red focus:outline-none transition-colors" placeholder="Enter your team name" data-bind="formData.teamName" required>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-bold text-valorant-mint mb-2">TEAM LEADER *</label>
+                                    <input type="text" class="w-full bg-valorant-charcoal border border-valorant-mint/30 rounded-lg px-4 py-3 text-valorant-off-white" value="CallMeSon" data-bind="user.name" data-mock="true" readonly>
+                                </div>
+                            </div>
+                            
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-bold text-valorant-mint mb-2">LEADER EMAIL</label>
+                                    <input type="email" class="w-full bg-valorant-charcoal border border-valorant-mint/30 rounded-lg px-4 py-3 text-valorant-off-white" value="callmeson@nyxxus.gg" data-bind="user.email" data-mock="true" readonly>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-bold text-valorant-mint mb-2">LEADER DISCORD</label>
+                                    <input type="text" class="w-full bg-valorant-charcoal border border-valorant-mint/30 rounded-lg px-4 py-3 text-valorant-off-white" value="CallMeSon#1337" data-bind="user.discord" data-mock="true" readonly>
+                                </div>
+                            </div>
+                            
+                            <!-- Team Members -->
+                            <div>
+                                <h3 class="font-teko text-2xl font-bold text-valorant-red mb-4">TEAM MEMBERS (Up to 5)</h3>
+                                <!-- @MAP: teamMembers.map((member, index) => ( -->
+                                <div class="space-y-4" data-implementation="Map through team members array">
+                                    <div class="grid md:grid-cols-2 gap-4 glass-morphism-light rounded-lg p-4" data-mock="true">
+                                        <div>
+                                            <label class="block text-sm font-bold text-valorant-mint mb-2">IGN (In-Game Name) *</label>
+                                            <input type="text" class="w-full bg-valorant-navy border border-valorant-red/30 rounded-lg px-4 py-3 text-white focus:border-valorant-red focus:outline-none" placeholder="Player IGN" data-bind="member.ign">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-bold text-valorant-mint mb-2">Discord (Optional)</label>
+                                            <input type="text" class="w-full bg-valorant-navy border border-valorant-red/30 rounded-lg px-4 py-3 text-white focus:border-valorant-red focus:outline-none" placeholder="Discord#1234" data-bind="member.discord">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="grid md:grid-cols-2 gap-4 glass-morphism-light rounded-lg p-4" data-mock="true">
+                                        <div>
+                                            <label class="block text-sm font-bold text-valorant-mint mb-2">IGN (In-Game Name) *</label>
+                                            <input type="text" class="w-full bg-valorant-navy border border-valorant-red/30 rounded-lg px-4 py-3 text-white focus:border-valorant-red focus:outline-none" placeholder="Player IGN" data-bind="member.ign">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-bold text-valorant-mint mb-2">Discord (Optional)</label>
+                                            <input type="text" class="w-full bg-valorant-navy border border-valorant-red/30 rounded-lg px-4 py-3 text-white focus:border-valorant-red focus:outline-none" placeholder="Discord#1234" data-bind="member.discord">
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- @END_MAP )) -->
+                                
+                                <button type="button" class="mt-4 glass-morphism-light px-4 py-2 rounded-lg hover:bg-valorant-mint hover:text-valorant-navy transition-colors" data-event="click:addTeamMember">
+                                    <i class="fas fa-plus mr-2"></i>Add Member
+                                </button>
+                            </div>
+                            
+                            <div class="flex justify-center">
+                                <button type="submit" class="skew-button bg-valorant-red px-12 py-4 text-xl font-bold rounded-lg text-white hover:bg-red-600">
+                                    <span class="block transform skew-x-10">
+                                        <i class="fas fa-rocket mr-2"></i>REGISTER TEAM
+                                    </span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- @END_COMPONENT: TeamRegistration -->
+
+        <!-- Payment & QR Section -->
+        <!-- @COMPONENT: PaymentSection [payment details, QR code] -->
+        <section id="payment" class="py-20 bg-valorant-navy hidden" data-state="showPayment">
+            <div class="container mx-auto px-6">
+                <div class="max-w-2xl mx-auto text-center">
+                    <div class="glass-morphism rounded-2xl p-8">
+                        <h3 class="font-teko text-4xl font-bold text-valorant-red mb-6">COMPLETE PAYMENT</h3>
+                        
+                        <div class="mb-8">
+                            <!-- QR Code placeholder -->
+                            <div class="w-48 h-48 mx-auto bg-white rounded-lg p-4 mb-6" data-mock-image="true" data-implementation="Display QR code from /public/qr.png">
+                                <div class="w-full h-full bg-black rounded flex items-center justify-center">
+                                    <i class="fas fa-qrcode text-white text-4xl"></i>
+                                </div>
+                            </div>
+                            <p class="text-valorant-mint mb-4">Scan QR code to complete payment</p>
+                            <p class="text-2xl font-bold text-valorant-red">₹500 Entry Fee</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-bold text-valorant-mint mb-2">UPLOAD PAYMENT PROOF *</label>
+                            <input type="file" accept=".jpg,.jpeg,.png,.pdf" class="w-full bg-valorant-charcoal border border-valorant-red/30 rounded-lg px-4 py-3 text-white file:bg-valorant-red file:border-0 file:text-white file:px-4 file:py-2 file:rounded file:mr-4" data-event="change:handleFileUpload">
+                            <p class="text-xs text-valorant-mint mt-2">Accepted formats: JPG, PNG, PDF</p>
+                        </div>
+                        
+                        <button class="mt-6 skew-button bg-valorant-mint text-valorant-navy px-8 py-3 font-bold rounded-lg hover:bg-green-400" data-event="click:submitPaymentProof">
+                            <span class="block transform skew-x-10">SUBMIT PROOF</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- @END_COMPONENT: PaymentSection -->
+
+        <!-- Profile/Status Section -->
+        <!-- @COMPONENT: ProfileSection [user data, team status] -->
+        <section id="profile" class="py-20 bg-valorant-charcoal">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="font-teko text-5xl font-bold text-valorant-red mb-4">PLAYER PROFILE</h2>
+                    <div class="h-1 w-24 bg-valorant-mint mx-auto"></div>
+                </div>
+                
+                <div class="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+                    <!-- User Info -->
+                    <div class="glass-morphism rounded-2xl p-6">
+                        <h3 class="font-teko text-2xl font-bold text-valorant-mint mb-4">PLAYER INFO</h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-valorant-off-white/70">Name:</span>
+                                <span data-bind="user.name" data-mock="true">CallMeSon</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-valorant-off-white/70">Email:</span>
+                                <span data-bind="user.email" data-mock="true">callmeson@nyxxus.gg</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-valorant-off-white/70">Discord:</span>
+                                <span data-bind="user.discord" data-mock="true">CallMeSon#1337</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-valorant-off-white/70">Registered:</span>
+                                <span data-bind="user.createdAt" data-mock="true">2024-01-15</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Team Status -->
+                    <div class="glass-morphism rounded-2xl p-6">
+                        <h3 class="font-teko text-2xl font-bold text-valorant-mint mb-4">TEAM STATUS</h3>
+                        <div class="space-y-4" data-bind="teamRegistration" data-mock="true">
+                            <div class="flex items-center justify-between">
+                                <span>Team Name:</span>
+                                <span class="font-bold">Shadow Legends</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span>Status:</span>
+                                <span class="status-pending px-3 py-1 rounded-full text-xs font-bold text-white">PENDING</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span>Members:</span>
+                                <span>5/5</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span>Payment:</span>
+                                <i class="fas fa-check text-valorant-mint"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Proof -->
+                        <div class="mt-6 pt-4 border-t border-valorant-red/20">
+                            <h4 class="font-bold text-valorant-mint mb-2">Payment Proof:</h4>
+                            <div class="w-full h-32 bg-valorant-navy rounded-lg flex items-center justify-center border border-valorant-red/30" data-mock-image="true" data-implementation="Display uploaded payment proof">
+                                <i class="fas fa-file-image text-valorant-mint text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- @END_COMPONENT: ProfileSection -->
+
+        <!-- Rules Section -->
+        <!-- @COMPONENT: RulesSection [tournament rules] -->
+        <section id="rules" class="py-20 bg-valorant-navy">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="font-teko text-5xl font-bold text-valorant-red mb-4">TOURNAMENT RULES</h2>
+                    <div class="h-1 w-24 bg-valorant-mint mx-auto mb-6"></div>
+                    <p class="text-xl opacity-90">Official Spike Rush Cup 2.0 Regulations</p>
+                </div>
+                
+                <div class="max-w-4xl mx-auto">
+                    <div class="glass-morphism rounded-2xl p-8">
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <div>
+                                <h3 class="font-teko text-2xl font-bold text-valorant-mint mb-4">GENERAL RULES</h3>
+                                <ul class="space-y-3 text-valorant-off-white/90">
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>Teams must consist of exactly 5 players</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>All players must be registered on the platform</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>Entry fee of ₹500 per team required</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>Payment proof must be submitted</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>Registration closes 24 hours before tournament</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            
+                            <div>
+                                <h3 class="font-teko text-2xl font-bold text-valorant-mint mb-4">GAMEPLAY RULES</h3>
+                                <ul class="space-y-3 text-valorant-off-white/90">
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>Tournament Mode: Spike Rush</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>Best of 3 format for all matches</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>No agent restrictions apply</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>Server: Mumbai (Asia)</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chevron-right text-valorant-red mr-3 mt-1"></i>
+                                        <span>Disconnections result in automatic loss</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-8 p-6 bg-valorant-red/20 rounded-lg border border-valorant-red/30">
+                            <h4 class="font-teko text-xl font-bold text-valorant-red mb-2">PRIZE POOL</h4>
+                            <div class="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                    <div class="text-2xl font-bold text-valorant-mint">₹25,000</div>
+                                    <div class="text-sm">1st Place</div>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-bold text-valorant-mint">₹15,000</div>
+                                    <div class="text-sm">2nd Place</div>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-bold text-valorant-mint">₹10,000</div>
+                                    <div class="text-sm">3rd Place</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- @END_COMPONENT: RulesSection -->
+
+        <!-- Admin Dashboard Preview -->
+        <!-- @COMPONENT: AdminDashboard [admin authentication, team management] -->
+        <section id="admin" class="py-20 bg-valorant-charcoal">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="font-teko text-5xl font-bold text-valorant-red mb-4">ADMIN CONTROL PANEL</h2>
+                    <div class="h-1 w-24 bg-valorant-mint mx-auto mb-6"></div>
+                    <p class="text-xl opacity-90">Nyxxus E-Sports Tournament Management</p>
+                </div>
+                
+                <div class="max-w-6xl mx-auto">
+                    <!-- Admin Controls -->
+                    <div class="glass-morphism rounded-2xl p-6 mb-8">
+                        <div class="flex flex-col md:flex-row justify-between items-center">
+                            <div>
+                                <h3 class="font-teko text-2xl font-bold text-valorant-mint">REGISTRATION STATUS</h3>
+                                <p class="text-valorant-off-white/70">Control tournament registration</p>
+                            </div>
+                            <div class="flex items-center space-x-4 mt-4 md:mt-0">
+                                <span class="text-sm">Registration:</span>
+                                <div class="relative">
+                                    <input type="checkbox" id="regToggle" class="sr-only" checked data-bind="settings.registrationOpen">
+                                    <div class="block bg-valorant-navy w-14 h-8 rounded-full border border-valorant-red/30 cursor-pointer" data-event="click:toggleRegistration">
+                                        <div class="dot absolute left-1 top-1 bg-valorant-red w-6 h-6 rounded-full transition transform translate-x-6"></div>
+                                    </div>
+                                </div>
+                                <span class="text-valorant-mint font-bold">OPEN</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Teams Table -->
+                    <div class="glass-morphism rounded-2xl overflow-hidden">
+                        <div class="p-6 border-b border-valorant-red/20">
+                            <div class="flex flex-col md:flex-row justify-between items-center">
+                                <h3 class="font-teko text-2xl font-bold text-valorant-mint mb-4 md:mb-0">REGISTERED TEAMS</h3>
+                                <div class="relative">
+                                    <input type="text" placeholder="Search teams..." class="bg-valorant-navy border border-valorant-red/30 rounded-lg px-4 py-2 pl-10 text-white focus:border-valorant-red focus:outline-none" data-event="input:filterTeams">
+                                    <i class="fas fa-search absolute left-3 top-3 text-valorant-mint"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-valorant-navy/50">
+                                    <tr>
+                                        <th class="text-left p-4 font-teko text-valorant-mint">ID</th>
+                                        <th class="text-left p-4 font-teko text-valorant-mint">TEAM NAME</th>
+                                        <th class="text-left p-4 font-teko text-valorant-mint">LEADER</th>
+                                        <th class="text-left p-4 font-teko text-valorant-mint">MEMBERS</th>
+                                        <th class="text-left p-4 font-teko text-valorant-mint">STATUS</th>
+                                        <th class="text-left p-4 font-teko text-valorant-mint">PAYMENT</th>
+                                        <th class="text-left p-4 font-teko text-valorant-mint">ACTIONS</th>
+                                    </tr>
+                                </thead>
+                                <tbody data-mock="true">
+                                    <!-- @MAP: teams.map(team => ( -->
+                                    <tr class="border-b border-valorant-red/10 hover:bg-valorant-navy/30 transition-colors">
+                                        <td class="p-4">#001</td>
+                                        <td class="p-4 font-bold">Shadow Legends</td>
+                                        <td class="p-4">
+                                            <div>
+                                                <div class="font-medium">CallMeSon</div>
+                                                <div class="text-xs text-valorant-mint">callmeson@nyxxus.gg</div>
+                                            </div>
+                                        </td>
+                                        <td class="p-4">5/5</td>
+                                        <td class="p-4">
+                                            <span class="status-pending px-2 py-1 rounded text-xs font-bold">PENDING</span>
+                                        </td>
+                                        <td class="p-4">
+                                            <button class="w-8 h-8 bg-valorant-mint rounded flex items-center justify-center hover:bg-green-400 transition-colors" data-event="click:viewPaymentProof">
+                                                <i class="fas fa-eye text-valorant-navy"></i>
+                                            </button>
+                                        </td>
+                                        <td class="p-4">
+                                            <div class="flex space-x-2">
+                                                <button class="px-3 py-1 bg-green-600 rounded text-xs font-bold hover:bg-green-500 transition-colors" data-event="click:approveTeam">APPROVE</button>
+                                                <button class="px-3 py-1 bg-red-600 rounded text-xs font-bold hover:bg-red-500 transition-colors" data-event="click:rejectTeam">REJECT</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    
+                                    <tr class="border-b border-valorant-red/10 hover:bg-valorant-navy/30 transition-colors">
+                                        <td class="p-4">#002</td>
+                                        <td class="p-4 font-bold">Phoenix Rising</td>
+                                        <td class="p-4">
+                                            <div>
+                                                <div class="font-medium">FireStorm</div>
+                                                <div class="text-xs text-valorant-mint">fire@example.com</div>
+                                            </div>
+                                        </td>
+                                        <td class="p-4">4/5</td>
+                                        <td class="p-4">
+                                            <span class="status-approved px-2 py-1 rounded text-xs font-bold">APPROVED</span>
+                                        </td>
+                                        <td class="p-4">
+                                            <button class="w-8 h-8 bg-valorant-mint rounded flex items-center justify-center hover:bg-green-400 transition-colors" data-event="click:viewPaymentProof">
+                                                <i class="fas fa-eye text-valorant-navy"></i>
+                                            </button>
+                                        </td>
+                                        <td class="p-4">
+                                            <div class="flex space-x-2">
+                                                <span class="px-3 py-1 bg-gray-600 rounded text-xs font-bold">APPROVED</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <!-- @END_MAP )) -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- @END_COMPONENT: AdminDashboard -->
+        
+    </div>
+
+    <!-- Footer -->
+    <!-- @COMPONENT: Footer [tournament info] -->
+    <footer class="bg-valorant-navy border-t border-valorant-red/20 py-12">
+        <div class="container mx-auto px-6 text-center">
+            <div class="mb-6">
+                <div class="flex items-center justify-center space-x-4 mb-4">
+                    <div class="w-12 h-12 bg-valorant-red rounded-lg flex items-center justify-center">
+                        <i class="fas fa-gamepad text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-teko text-3xl font-bold text-valorant-red">NYXXUS E-SPORTS</h3>
+                        <p class="text-valorant-mint">Tournament Portal</p>
+                    </div>
+                </div>
+                <p class="text-xl font-bold text-valorant-off-white">Official Tournament Portal by Nyxxus E-Sports</p>
+            </div>
+            
+            <div class="flex justify-center space-x-6 mb-6">
+                <a href="#" class="text-valorant-mint hover:text-white transition-colors">
+                    <i class="fab fa-discord text-2xl"></i>
+                </a>
+                <a href="#" class="text-valorant-mint hover:text-white transition-colors">
+                    <i class="fab fa-twitter text-2xl"></i>
+                </a>
+                <a href="#" class="text-valorant-mint hover:text-white transition-colors">
+                    <i class="fab fa-instagram text-2xl"></i>
+                </a>
+                <a href="#" class="text-valorant-mint hover:text-white transition-colors">
+                    <i class="fab fa-youtube text-2xl"></i>
+                </a>
+            </div>
+            
+            <div class="border-t border-valorant-red/20 pt-6">
+                <p class="text-valorant-off-white/70">© 2024 Nyxxus E-Sports. All rights reserved. | Spike Rush Cup 2.0</p>
+            </div>
+        </div>
+    </footer>
+    <!-- @END_COMPONENT: Footer -->
+
+    <script>
+        // Initialize UI interactions (for demo purposes only)
+        (function() {
+            // TODO: Implement actual authentication, form submissions, and API calls
+            
+            // Smooth scrolling for navigation
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+            
+            // Toggle registration status (demo)
+            const regToggle = document.getElementById('regToggle');
+            if (regToggle) {
+                regToggle.addEventListener('change', function() {
+                    console.log('Registration status toggled:', this.checked);
+                    // TODO: Implement actual API call to update registration status
+                });
+            }
+            
+            // File upload handling
+            document.querySelectorAll('input[type="file"]').forEach(input => {
+                input.addEventListener('change', function(e) {
+                    console.log('File selected:', e.target.files[0]);
+                    // TODO: Implement actual file upload to server
+                });
+            });
+            
+            // Form submission handling
+            document.querySelectorAll('form').forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    console.log('Form submitted:', new FormData(this));
+                    // TODO: Implement actual form submission with validation
+                });
+            });
+            
+            // Button interaction feedback
+            document.querySelectorAll('button').forEach(button => {
+                button.addEventListener('click', function() {
+                    this.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        this.style.transform = '';
+                    }, 150);
+                });
+            });
+        })();
+    </script>
+</body>
+</html>
