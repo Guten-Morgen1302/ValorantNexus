@@ -1,23 +1,36 @@
-import { storage } from "./_lib/storage";
 
-export default async function handler(req: any, res: any) {
-  const { action } = req.query;
-  
+import { NextRequest, NextResponse } from 'next/server';
+import { db, initializeDatabase } from './_lib/db';
+import { settings } from '../../shared/schema';
+import { eq } from 'drizzle-orm';
+
+// Initialize database on first request
+let dbInitialized = false;
+
+async function ensureDbInitialized() {
+  if (!dbInitialized) {
+    await initializeDatabase();
+    dbInitialized = true;
+  }
+}
+
+export async function GET(request: NextRequest) {
   try {
-    switch (action) {
-      case 'registration-open':
-        if (req.method !== 'GET') {
-          return res.status(405).json({ message: 'Method not allowed' });
-        }
-        
-        const registrationOpen = await storage.getSetting("registration_open");
-        return res.json({ registrationOpen: registrationOpen === "true" });
-        
-      default:
-        return res.status(404).json({ message: 'Action not found' });
+    await ensureDbInitialized();
+    
+    const url = new URL(request.url);
+    const action = url.searchParams.get('action');
+    
+    if (action === 'registration-open') {
+      const [setting] = await db.select().from(settings).where(eq(settings.key, 'registration_open')).limit(1);
+      const registrationOpen = setting?.value === 'true';
+      
+      return NextResponse.json({ registrationOpen });
     }
+
+    return NextResponse.json({ message: "Invalid action" }, { status: 400 });
   } catch (error) {
     console.error("Settings error:", error);
-    res.status(500).json({ message: "Internal server error" });
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
