@@ -2,10 +2,8 @@ import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import * as schema from "../../shared/schema";
 
-// Configure for Vercel serverless environment
-if (typeof window === 'undefined') {
-  neonConfig.webSocketConstructor = require('ws');
-}
+// Configure for Vercel serverless - no WebSocket needed for simple queries
+neonConfig.fetchConnectionCache = true;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
