@@ -31,9 +31,9 @@ export default function Signup() {
   });
 
   const signupMutation = useMutation({
-    mutationFn: (data: InsertUser) => apiRequest("POST", "/api/auth/signup-standalone", data),
+    mutationFn: (data: InsertUser) => apiRequest("POST", "/api/auth?action=signup", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth?action=user"] });
       toast({
         title: "Welcome to Nyxxus E-Sports!",
         description: "Your account has been created successfully",

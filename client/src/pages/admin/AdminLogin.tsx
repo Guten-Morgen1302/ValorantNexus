@@ -27,7 +27,7 @@ export default function AdminLogin() {
   });
 
   const loginMutation = useMutation({
-    mutationFn: (data: AdminLoginData) => apiRequest("POST", "/api/admin/login", data),
+    mutationFn: (data: AdminLoginData) => apiRequest("POST", "/api/admin?action=login", data),
     onSuccess: () => {
       toast({
         title: "Admin access granted",

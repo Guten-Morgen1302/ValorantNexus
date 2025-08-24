@@ -10,7 +10,7 @@ export default function Profile() {
   const { toast } = useToast();
   
   const { data: team, refetch } = useQuery({
-    queryKey: ["/api/teams/my-team"],
+    queryKey: ["/api/teams?action=my-team"],
     retry: false,
     refetchInterval: 30000, // Check for updates every 30 seconds
   });

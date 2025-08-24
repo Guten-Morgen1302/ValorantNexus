@@ -29,9 +29,9 @@ export default function Login() {
   });
 
   const loginMutation = useMutation({
-    mutationFn: (data: LoginData) => apiRequest("POST", "/api/auth/login", data),
+    mutationFn: (data: LoginData) => apiRequest("POST", "/api/auth?action=login", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth?action=user"] });
       toast({
         title: "Welcome back!",
         description: "You have been logged in successfully",

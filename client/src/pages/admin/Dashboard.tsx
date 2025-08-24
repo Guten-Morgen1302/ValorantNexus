@@ -17,11 +17,11 @@ export default function Dashboard() {
   const [rejectionReason, setRejectionReason] = useState("");
   
   const { data: teamsData } = useQuery({
-    queryKey: ["/api/admin/teams"],
+    queryKey: ["/api/admin?action=teams"],
   });
 
   const { data: registrationStatus } = useQuery({
-    queryKey: ["/api/settings/registration-open"],
+    queryKey: ["/api/settings?action=registration-open"],
   });
 
   const teams = teamsData?.teams || [];
@@ -33,9 +33,9 @@ export default function Dashboard() {
 
   const toggleRegistrationMutation = useMutation({
     mutationFn: (registrationOpen: boolean) => 
-      apiRequest("POST", "/api/admin/settings/registration-toggle", { registrationOpen }),
+      apiRequest("POST", "/api/admin?action=settings", { registrationOpen }),
     onSuccess: (_, registrationOpen) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings/registration-open"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings?action=registration-open"] });
       toast({
         title: `Registration ${registrationOpen ? "opened" : "closed"}`,
         description: `Tournament registration is now ${registrationOpen ? "open" : "closed"}`,
@@ -45,9 +45,9 @@ export default function Dashboard() {
 
   const approveTeamMutation = useMutation({
     mutationFn: (teamId: number) => 
-      apiRequest("POST", `/api/admin/teams/${teamId}/approve`),
+      apiRequest("POST", "/api/admin?action=teams", { teamId, status: 'approved' }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/teams"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin?action=teams"] });
       toast({
         title: "Team approved",
         description: "The team has been approved successfully",
@@ -57,9 +57,9 @@ export default function Dashboard() {
 
   const rejectTeamMutation = useMutation({
     mutationFn: ({ teamId, reason }: { teamId: number; reason: string }) => 
-      apiRequest("POST", `/api/admin/teams/${teamId}/reject`, { reason }),
+      apiRequest("POST", "/api/admin?action=teams", { teamId, status: 'rejected', reason }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/teams"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin?action=teams"] });
       setRejectionReason("");
       toast({
         title: "Team rejected",
@@ -70,9 +70,9 @@ export default function Dashboard() {
 
   const deleteTeamMutation = useMutation({
     mutationFn: (teamId: number) => 
-      apiRequest("DELETE", `/api/admin/teams/${teamId}`),
+      apiRequest("DELETE", "/api/admin?action=teams", { teamId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/teams"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin?action=teams"] });
       toast({
         title: "Team deleted",
         description: "The team has been deleted successfully. The user can now register a new team.",

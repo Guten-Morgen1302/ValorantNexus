@@ -22,11 +22,11 @@ export default function Register() {
   const [showPayment, setShowPayment] = useState(false);
   
   const { data: registrationStatus } = useQuery<{ registrationOpen: boolean }>({
-    queryKey: ["/api/settings/registration-open"],
+    queryKey: ["/api/settings?action=registration-open"],
   });
 
   const { data: existingTeam } = useQuery<{ teamName: string; status: string; members: any[] } | null>({
-    queryKey: ["/api/teams/my-team"],
+    queryKey: ["/api/teams?action=my-team"],
     retry: false,
   });
 
@@ -59,7 +59,7 @@ export default function Register() {
 
   const registerMutation = useMutation({
     mutationFn: (formData: FormData) => {
-      return fetch("/api/teams/register", {
+      return fetch("/api/teams?action=register", {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -67,7 +67,7 @@ export default function Register() {
     },
     onSuccess: async (response) => {
       if (response.ok) {
-        queryClient.invalidateQueries({ queryKey: ["/api/teams/my-team"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/teams?action=my-team"] });
         const responseData = await response.json();
         const isResubmission = existingTeam && existingTeam.status === "rejected";
         

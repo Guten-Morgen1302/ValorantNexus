@@ -15,7 +15,7 @@ export default function Layout({ children }: LayoutProps) {
   const queryClient = useQueryClient();
 
   const logoutMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/auth/logout"),
+    mutationFn: () => apiRequest("POST", "/api/auth?action=logout"),
     onSuccess: () => {
       queryClient.clear();
       toast({
